@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Cache directory untuk temporary files (kamera) -->
+    <cache-path name="image_cache" path="." />
+
+    <!-- External cache (jika ada) -->
+    <external-cache-path name="external_cache" path="." />
+
+    <!-- Files directory -->
+    <files-path name="files" path="." />
+</paths>
+
