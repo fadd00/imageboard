@@ -28,27 +28,24 @@ import com.sample.image_board.viewmodel.CommentDeleteState
 import com.sample.image_board.viewmodel.CommentPostState
 import com.sample.image_board.viewmodel.DetailState
 import com.sample.image_board.viewmodel.DetailViewModel
+import com.sample.image_board.viewmodel.ThreadDeleteState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(
-    threadId: String,
-    onBack: () -> Unit,
-    viewModel: DetailViewModel = viewModel()
-) {
+fun DetailScreen(threadId: String, onBack: () -> Unit, viewModel: DetailViewModel = viewModel()) {
     val context = LocalContext.current
     val detailState by viewModel.detailState.collectAsState()
     val commentPostState by viewModel.commentPostState.collectAsState()
     val commentDeleteState by viewModel.commentDeleteState.collectAsState()
 
     var commentText by remember { mutableStateOf("") }
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDeleteCommentDialog by remember { mutableStateOf(false) }
+    var showDeleteThreadDialog by remember { mutableStateOf(false) }
     var commentToDelete by remember { mutableStateOf<String?>(null) }
+    val threadDeleteState by viewModel.threadDeleteState.collectAsState()
 
     // Load thread detail saat pertama kali dibuka
-    LaunchedEffect(threadId) {
-        viewModel.loadThreadDetail(threadId)
-    }
+    LaunchedEffect(threadId) { viewModel.loadThreadDetail(threadId) }
 
     // Handle comment post state
     LaunchedEffect(commentPostState) {
@@ -81,90 +78,140 @@ fun DetailScreen(
         }
     }
 
-    // Delete confirmation dialog
-    if (showDeleteDialog && commentToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Hapus Komentar") },
-            text = { Text("Apakah Anda yakin ingin menghapus komentar ini?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteComment(threadId, commentToDelete!!)
-                        showDeleteDialog = false
-                        commentToDelete = null
-                    }
-                ) {
-                    Text("Hapus", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Batal")
-                }
+    // Handle thread delete state
+    LaunchedEffect(threadDeleteState) {
+        when (val state = threadDeleteState) {
+            is ThreadDeleteState.Success -> {
+                Toast.makeText(context, "Thread berhasil dihapus!", Toast.LENGTH_SHORT).show()
+                viewModel.resetThreadDeleteState()
+                onBack() // Navigate back to home after deletion
             }
+            is ThreadDeleteState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+                viewModel.resetThreadDeleteState()
+            }
+            else -> {}
+        }
+    }
+
+    // Delete comment confirmation dialog
+    if (showDeleteCommentDialog && commentToDelete != null) {
+        AlertDialog(
+                onDismissRequest = { showDeleteCommentDialog = false },
+                title = { Text("Hapus Komentar") },
+                text = { Text("Apakah Anda yakin ingin menghapus komentar ini?") },
+                confirmButton = {
+                    TextButton(
+                            onClick = {
+                                viewModel.deleteComment(threadId, commentToDelete!!)
+                                showDeleteCommentDialog = false
+                                commentToDelete = null
+                            }
+                    ) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteCommentDialog = false }) { Text("Batal") }
+                }
+        )
+    }
+
+    // Delete thread confirmation dialog
+    if (showDeleteThreadDialog) {
+        AlertDialog(
+                onDismissRequest = { showDeleteThreadDialog = false },
+                title = { Text("Hapus Thread") },
+                text = {
+                    Text(
+                            "Apakah Anda yakin ingin menghapus thread ini? Semua komentar juga akan terhapus."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                            onClick = {
+                                viewModel.deleteThread(threadId)
+                                showDeleteThreadDialog = false
+                            }
+                    ) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteThreadDialog = false }) { Text("Batal") }
+                }
         )
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Thread Detail") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
+            topBar = {
+                TopAppBar(
+                        title = { Text("Thread Detail") },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back"
+                                )
+                            }
+                        },
+                        actions = {
+                            // Show delete button only if user can delete this thread
+                            val currentState = detailState
+                            if (currentState is DetailState.Success && currentState.canDeleteThread
+                            ) {
+                                IconButton(
+                                        onClick = { showDeleteThreadDialog = true },
+                                        enabled = threadDeleteState !is ThreadDeleteState.Loading
+                                ) {
+                                    if (threadDeleteState is ThreadDeleteState.Loading) {
+                                        CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Hapus thread",
+                                                tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                )
+            }
     ) { padding ->
         when (val state = detailState) {
             is DetailState.Loading -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentAlignment = Alignment.Center
+                ) { CircularProgressIndicator() }
             }
-
             is DetailState.Success -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
+                Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                     // Content (Thread + Comments) - Scrollable
                     LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // Thread Detail
-                        item {
-                            ThreadDetailCard(thread = state.thread)
-                        }
+                        item { ThreadDetailCard(thread = state.thread) }
 
                         // Comments Header
                         item {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "Komentar",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
+                                        "Komentar",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    "${state.comments.size} komentar",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        "${state.comments.size} komentar",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -173,22 +220,23 @@ fun DetailScreen(
                         if (state.comments.isEmpty()) {
                             item {
                                 Text(
-                                    "Belum ada komentar. Jadilah yang pertama berkomentar!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 16.dp)
+                                        "Belum ada komentar. Jadilah yang pertama berkomentar!",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 16.dp)
                                 )
                             }
                         } else {
                             items(state.comments, key = { it.id }) { comment ->
                                 CommentItem(
-                                    comment = comment,
-                                    onDeleteClick = if (comment.canDelete) {
-                                        {
-                                            commentToDelete = comment.id
-                                            showDeleteDialog = true
-                                        }
-                                    } else null
+                                        comment = comment,
+                                        onDeleteClick =
+                                                if (comment.canDelete) {
+                                                    {
+                                                        commentToDelete = comment.id
+                                                        showDeleteCommentDialog = true
+                                                    }
+                                                } else null
                                 )
                             }
                         }
@@ -196,31 +244,26 @@ fun DetailScreen(
 
                     // Comment Input - Fixed di bawah
                     CommentInputBar(
-                        commentText = commentText,
-                        onCommentTextChange = {
-                            if (it.length <= DetailViewModel.MAX_COMMENT_LENGTH) {
-                                commentText = it
-                            }
-                        },
-                        onSendClick = {
-                            viewModel.postComment(threadId, commentText)
-                        },
-                        isLoading = commentPostState is CommentPostState.Loading,
-                        enabled = commentText.isNotBlank()
+                            commentText = commentText,
+                            onCommentTextChange = {
+                                if (it.length <= DetailViewModel.MAX_COMMENT_LENGTH) {
+                                    commentText = it
+                                }
+                            },
+                            onSendClick = { viewModel.postComment(threadId, commentText) },
+                            isLoading = commentPostState is CommentPostState.Loading,
+                            enabled = commentText.isNotBlank()
                     )
                 }
             }
-
             is DetailState.Error -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentAlignment = Alignment.Center
                 ) {
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(state.message)
                         Button(onClick = { viewModel.loadThreadDetail(threadId) }) {
@@ -236,35 +279,33 @@ fun DetailScreen(
 @Composable
 fun ThreadDetailCard(thread: ThreadWithUser) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Title
             Text(
-                text = thread.title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                    text = thread.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Author & Date
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 // Avatar placeholder
                 Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        modifier =
+                                Modifier.size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = thread.userName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = thread.userName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -272,75 +313,58 @@ fun ThreadDetailCard(thread: ThreadWithUser) {
 
             // Image
             AsyncImage(
-                model = thread.imageUrl,
-                contentDescription = "Thread Image",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 200.dp, max = 400.dp)
-                    .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop
+                    model = thread.imageUrl,
+                    contentDescription = "Thread Image",
+                    modifier =
+                            Modifier.fillMaxWidth()
+                                    .heightIn(min = 200.dp, max = 400.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
             )
 
             // Caption
             if (thread.content.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = thread.content,
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                Text(text = thread.content, style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
 }
 
 @Composable
-fun CommentItem(
-    comment: CommentWithPermissions,
-    onDeleteClick: (() -> Unit)? = null
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+fun CommentItem(comment: CommentWithPermissions, onDeleteClick: (() -> Unit)? = null) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         // Avatar
         Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondaryContainer)
+                modifier =
+                        Modifier.size(32.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
         )
 
         // Comment Content
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             // Username
             Text(
-                text = comment.userName,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
+                    text = comment.userName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(4.dp))
 
             // Comment text
-            Text(
-                text = comment.content,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text(text = comment.content, style = MaterialTheme.typography.bodyMedium)
         }
 
         // Delete button (only if user can delete)
         if (onDeleteClick != null) {
-            IconButton(
-                onClick = onDeleteClick,
-                modifier = Modifier.size(32.dp)
-            ) {
+            IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Hapus komentar",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
+                        Icons.Default.Delete,
+                        contentDescription = "Hapus komentar",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -349,74 +373,66 @@ fun CommentItem(
 
 @Composable
 fun CommentInputBar(
-    commentText: String,
-    onCommentTextChange: (String) -> Unit,
-    onSendClick: () -> Unit,
-    isLoading: Boolean,
-    enabled: Boolean
+        commentText: String,
+        onCommentTextChange: (String) -> Unit,
+        onSendClick: () -> Unit,
+        isLoading: Boolean,
+        enabled: Boolean
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shadowElevation = 8.dp,
-        tonalElevation = 2.dp
-    ) {
+    Surface(modifier = Modifier.fillMaxWidth(), shadowElevation = 8.dp, tonalElevation = 2.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Bottom
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
         ) {
             // Text Field
             OutlinedTextField(
-                value = commentText,
-                onValueChange = onCommentTextChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Tulis komentar...") },
-                maxLines = 4,
-                enabled = !isLoading,
-                supportingText = {
-                    Text(
-                        "${commentText.length}/${DetailViewModel.MAX_COMMENT_LENGTH}",
-                        color = if (commentText.length >= DetailViewModel.MAX_COMMENT_LENGTH)
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                    value = commentText,
+                    onValueChange = onCommentTextChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Tulis komentar...") },
+                    maxLines = 4,
+                    enabled = !isLoading,
+                    supportingText = {
+                        Text(
+                                "${commentText.length}/${DetailViewModel.MAX_COMMENT_LENGTH}",
+                                color =
+                                        if (commentText.length >= DetailViewModel.MAX_COMMENT_LENGTH
+                                        )
+                                                MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
             )
 
             // Send Button
             IconButton(
-                onClick = onSendClick,
-                enabled = enabled && !isLoading,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (enabled && !isLoading)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    onClick = onSendClick,
+                    enabled = enabled && !isLoading,
+                    modifier =
+                            Modifier.size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                            if (enabled && !isLoading)
+                                                    MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                    )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
                     Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = if (enabled)
-                            MaterialTheme.colorScheme.onPrimary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            tint =
+                                    if (enabled) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
     }
 }
-

@@ -2,11 +2,11 @@ package com.sample.image_board.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sample.image_board.data.repository.AuthRepository
-import com.sample.image_board.data.repository.ThreadRepository
-import com.sample.image_board.data.model.ThreadWithUser
+import com.sample.image_board.data.model.Result
 import com.sample.image_board.data.model.ThreadWithPermissions
 import com.sample.image_board.data.model.toThreadWithPermissions
+import com.sample.image_board.data.repository.AuthRepository
+import com.sample.image_board.data.repository.ThreadRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -75,53 +75,57 @@ class HomeViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            try {
-                // Reset pagination
-                currentOffset = 0
-                hasMoreData = true
+            // Reset pagination
+            currentOffset = 0
+            hasMoreData = true
 
-                val threads = repository.getThreadsPaginated(
-                    offset = currentOffset,
-                    limit = pageSize
-                )
+            when (val threadsResult = repository.getThreadsPaginated(offset = currentOffset, limit = pageSize)) {
+                is Result.Success -> {
+                    val threads = threadsResult.data
+                    // Load comment counts untuk threads
+                    val threadIds = threads.map { it.id }
+                    when (val commentCountsResult = repository.getCommentCounts(threadIds)) {
+                        is Result.Success -> {
+                            val commentCounts = commentCountsResult.data
+                            // Get current user info
+                            val currentUserId = authRepository.getCurrentUserId() ?: ""
+                            val isAdmin = authRepository.isAdmin()
 
-                // Load comment counts untuk threads
-                val threadIds = threads.map { it.id }
-                val commentCounts = repository.getCommentCounts(threadIds)
+                            // Update threads dengan comment count dan permissions
+                            val threadsWithPermissions = threads.map { thread ->
+                                thread.copy(commentCount = commentCounts[thread.id] ?: 0)
+                                    .toThreadWithPermissions(currentUserId, isAdmin)
+                            }
 
-                // Get current user info
-                val currentUserId = authRepository.getCurrentUserId() ?: ""
-                val isAdmin = authRepository.isAdmin()
+                            // Store all threads for search
+                            allThreads = threadsWithPermissions
 
-                // Update threads dengan comment count dan permissions
-                val threadsWithPermissions = threads.map { thread ->
-                    thread.copy(commentCount = commentCounts[thread.id] ?: 0)
-                        .toThreadWithPermissions(currentUserId, isAdmin)
+                            // Apply search filter if active
+                            val filteredThreads = if (_searchQuery.value.isNotEmpty()) {
+                                filterThreads(threadsWithPermissions, _searchQuery.value)
+                            } else {
+                                threadsWithPermissions
+                            }
+
+                            // Cek apakah masih ada data berikutnya
+                            hasMoreData = threads.size >= pageSize
+
+                            _homeState.value = HomeState.Success(
+                                threads = filteredThreads,
+                                hasMore = hasMoreData
+                            )
+
+                            // Update offset untuk pagination berikutnya
+                            currentOffset = threads.size
+                        }
+                        is Result.Error -> {
+                            _homeState.value = HomeState.Error(commentCountsResult.exception.message ?: "Gagal memuat jumlah komentar")
+                        }
+                    }
                 }
-
-                // Store all threads for search
-                allThreads = threadsWithPermissions
-
-                // Apply search filter if active
-                val filteredThreads = if (_searchQuery.value.isNotEmpty()) {
-                    filterThreads(threadsWithPermissions, _searchQuery.value)
-                } else {
-                    threadsWithPermissions
+                is Result.Error -> {
+                    _homeState.value = HomeState.Error(threadsResult.exception.message ?: "Gagal memuat feed")
                 }
-
-                // Cek apakah masih ada data berikutnya
-                hasMoreData = threads.size >= pageSize
-
-                _homeState.value = HomeState.Success(
-                    threads = filteredThreads,
-                    hasMore = hasMoreData
-                )
-
-                // Update offset untuk pagination berikutnya
-                currentOffset = threads.size
-
-            } catch (e: Exception) {
-                _homeState.value = HomeState.Error(e.message ?: "Gagal memuat feed")
             }
         }
     }
@@ -141,56 +145,60 @@ class HomeViewModel : ViewModel() {
         _homeState.value = HomeState.LoadingMore
 
         viewModelScope.launch {
-            try {
-                val newThreads = repository.getThreadsPaginated(
-                    offset = currentOffset,
-                    limit = pageSize
-                )
+            when (val newThreadsResult = repository.getThreadsPaginated(offset = currentOffset, limit = pageSize)) {
+                is Result.Success -> {
+                    val newThreads = newThreadsResult.data
+                    // Load comment counts untuk new threads
+                    val threadIds = newThreads.map { it.id }
+                    when (val commentCountsResult = repository.getCommentCounts(threadIds)) {
+                        is Result.Success -> {
+                            val commentCounts = commentCountsResult.data
+                            // Get current user info
+                            val currentUserId = authRepository.getCurrentUserId() ?: ""
+                            val isAdmin = authRepository.isAdmin()
 
-                // Load comment counts untuk new threads
-                val threadIds = newThreads.map { it.id }
-                val commentCounts = repository.getCommentCounts(threadIds)
+                            // Update new threads dengan comment count dan permissions
+                            val threadsWithPermissions = newThreads.map { thread ->
+                                thread.copy(commentCount = commentCounts[thread.id] ?: 0)
+                                    .toThreadWithPermissions(currentUserId, isAdmin)
+                            }
 
-                // Get current user info
-                val currentUserId = authRepository.getCurrentUserId() ?: ""
-                val isAdmin = authRepository.isAdmin()
+                            // Update all threads list
+                            allThreads = allThreads + threadsWithPermissions
 
-                // Update new threads dengan comment count dan permissions
-                val threadsWithPermissions = newThreads.map { thread ->
-                    thread.copy(commentCount = commentCounts[thread.id] ?: 0)
-                        .toThreadWithPermissions(currentUserId, isAdmin)
+                            // Apply search filter if active
+                            val filteredNewThreads = if (_searchQuery.value.isNotEmpty()) {
+                                filterThreads(threadsWithPermissions, _searchQuery.value)
+                            } else {
+                                threadsWithPermissions
+                            }
+
+                            // Cek apakah masih ada data berikutnya
+                            hasMoreData = newThreads.size >= pageSize
+
+                            // Gabungkan dengan threads yang sudah ada
+                            val allThreads = currentState.threads + filteredNewThreads
+
+                            _homeState.value = HomeState.Success(
+                                threads = allThreads,
+                                hasMore = hasMoreData
+                            )
+
+                            // Update offset
+                            currentOffset = allThreads.size
+                        }
+                        is Result.Error -> {
+                            // Jika error saat load more, kembali ke state Success dengan data lama
+                            _homeState.value = currentState.copy(hasMore = false)
+                        }
+                    }
                 }
-
-                // Update all threads list
-                allThreads = allThreads + threadsWithPermissions
-
-                // Apply search filter if active
-                val filteredNewThreads = if (_searchQuery.value.isNotEmpty()) {
-                    filterThreads(threadsWithPermissions, _searchQuery.value)
-                } else {
-                    threadsWithPermissions
+                is Result.Error -> {
+                    // Jika error saat load more, kembali ke state Success dengan data lama
+                    _homeState.value = currentState.copy(hasMore = false)
                 }
-
-                // Cek apakah masih ada data berikutnya
-                hasMoreData = newThreads.size >= pageSize
-
-                // Gabungkan dengan threads yang sudah ada
-                val allThreads = currentState.threads + filteredNewThreads
-
-                _homeState.value = HomeState.Success(
-                    threads = allThreads,
-                    hasMore = hasMoreData
-                )
-
-                // Update offset
-                currentOffset = allThreads.size
-
-            } catch (e: Exception) {
-                // Jika error saat load more, kembali ke state Success dengan data lama
-                _homeState.value = currentState.copy(hasMore = false)
-            } finally {
-                isLoadingMore = false
             }
+            isLoadingMore = false
         }
     }
 
@@ -210,17 +218,18 @@ class HomeViewModel : ViewModel() {
     fun deleteThread(threadId: String) {
         viewModelScope.launch {
             _threadDeleteState.value = ThreadDeleteState.Loading
-            try {
-                repository.deleteThread(threadId)
-                _threadDeleteState.value = ThreadDeleteState.Success
+            when (val result = repository.deleteThread(threadId)) {
+                is Result.Success -> {
+                    _threadDeleteState.value = ThreadDeleteState.Success
 
-                // Reload threads untuk update list
-                loadThreads()
-
-            } catch (e: Exception) {
-                _threadDeleteState.value = ThreadDeleteState.Error(
-                    e.message ?: "Gagal menghapus thread"
-                )
+                    // Reload threads untuk update list
+                    loadThreads()
+                }
+                is Result.Error -> {
+                    _threadDeleteState.value = ThreadDeleteState.Error(
+                        result.exception.message ?: "Gagal menghapus thread"
+                    )
+                }
             }
         }
     }

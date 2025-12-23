@@ -18,6 +18,9 @@ fun AuthScreen(
     // Callback: Kalau login sukses, navigasi ke Home
     onLoginSuccess: () -> Unit,
 
+    // Callback: Navigasi ke forgot password screen
+    onForgotPasswordClick: () -> Unit = {},
+
     // Kita inject ViewModel di sini biar rapi
     viewModel: AuthViewModel = viewModel()
 ) {
@@ -174,6 +177,14 @@ fun AuthScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Tombol Lupa Password (hanya muncul di mode login)
+        if (isLoginMode) {
+            TextButton(onClick = onForgotPasswordClick) {
+                Text("Lupa Password?")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         // Tombol Ganti Mode
         TextButton(onClick = { isLoginMode = !isLoginMode }) {

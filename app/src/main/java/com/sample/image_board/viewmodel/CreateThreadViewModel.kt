@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sample.image_board.data.repository.ThreadRepository
 import com.sample.image_board.utils.ImageCompressor
+import com.sample.image_board.data.model.Result
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -132,41 +133,41 @@ class CreateThreadViewModel : ViewModel() {
         viewModelScope.launch {
             _createState.value = CreateThreadState.Loading
 
+            // 1. Validasi Title
+            if (title.isBlank()) {
+                _createState.value = CreateThreadState.Error("Judul tidak boleh kosong")
+                return@launch
+            }
+
+            if (title.length < 3) {
+                _createState.value = CreateThreadState.Error("Judul minimal 3 karakter")
+                return@launch
+            }
+
+            // 2. Validasi Caption (Opsional tapi ada batas)
+            if (caption.length > MAX_CAPTION_LENGTH) {
+                _createState.value = CreateThreadState.Error(
+                    "Caption maksimal $MAX_CAPTION_LENGTH karakter"
+                )
+                return@launch
+            }
+
+            // 3. Validasi Image (WAJIB)
+            if (imageUri == null) {
+                _createState.value = CreateThreadState.Error("Gambar wajib dipilih")
+                return@launch
+            }
+
+            // 4. Validasi format image
+            val validation = validateImage(context, imageUri)
+            if (!validation.isValid) {
+                _createState.value = CreateThreadState.Error(
+                    validation.errorMessage ?: "Gambar tidak valid"
+                )
+                return@launch
+            }
+
             try {
-                // 1. Validasi Title
-                if (title.isBlank()) {
-                    _createState.value = CreateThreadState.Error("Judul tidak boleh kosong")
-                    return@launch
-                }
-
-                if (title.length < 3) {
-                    _createState.value = CreateThreadState.Error("Judul minimal 3 karakter")
-                    return@launch
-                }
-
-                // 2. Validasi Caption (Opsional tapi ada batas)
-                if (caption.length > MAX_CAPTION_LENGTH) {
-                    _createState.value = CreateThreadState.Error(
-                        "Caption maksimal $MAX_CAPTION_LENGTH karakter"
-                    )
-                    return@launch
-                }
-
-                // 3. Validasi Image (WAJIB)
-                if (imageUri == null) {
-                    _createState.value = CreateThreadState.Error("Gambar wajib dipilih")
-                    return@launch
-                }
-
-                // 4. Validasi format image
-                val validation = validateImage(context, imageUri)
-                if (!validation.isValid) {
-                    _createState.value = CreateThreadState.Error(
-                        validation.errorMessage ?: "Gambar tidak valid"
-                    )
-                    return@launch
-                }
-
                 // 5. Kompres image jika perlu
                 val imageByteArray = ImageCompressor.compressImage(
                     context = context,
@@ -182,17 +183,23 @@ class CreateThreadViewModel : ViewModel() {
                 println("📦 Image compressed: ${validation.fileSizeKB}KB → ${compressedSizeKB}KB")
 
                 // 6. Upload ke repository
-                repository.createThread(
+                when (val result = repository.createThread(
                     title = title.trim(),
                     caption = caption.trim().takeIf { it.isNotEmpty() },
                     imageData = imageByteArray
-                )
-
-                _createState.value = CreateThreadState.Success
-
+                )) {
+                    is Result.Success -> {
+                        _createState.value = CreateThreadState.Success
+                    }
+                    is Result.Error -> {
+                        _createState.value = CreateThreadState.Error(
+                            result.exception.message ?: "Gagal membuat thread"
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 _createState.value = CreateThreadState.Error(
-                    e.message ?: "Gagal membuat thread"
+                    e.message ?: "Gagal memproses gambar"
                 )
             }
         }

@@ -2,6 +2,7 @@ package com.sample.image_board.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sample.image_board.data.model.Result
 import com.sample.image_board.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,10 +10,18 @@ import kotlinx.coroutines.launch
 
 // 1. Definisikan State UI (Kondisi Layar)
 sealed interface AuthState {
-    data object Idle : AuthState         // Diam (awal)
-    data object Loading : AuthState      // Loading (Spinner muter)
-    data object Success : AuthState      // Berhasil (Pindah ke Home)
+    data object Idle : AuthState // Diam (awal)
+    data object Loading : AuthState // Loading (Spinner muter)
+    data object Success : AuthState // Berhasil (Pindah ke Home)
     data class Error(val message: String) : AuthState // Gagal (Munculin Toast)
+}
+
+// State untuk forgot password
+sealed interface ForgotPasswordState {
+    data object Idle : ForgotPasswordState
+    data object Loading : ForgotPasswordState
+    data object Success : ForgotPasswordState
+    data class Error(val message: String) : ForgotPasswordState
 }
 
 class AuthViewModel : ViewModel() {
@@ -27,8 +36,17 @@ class AuthViewModel : ViewModel() {
     private val _showLogoutDialog = MutableStateFlow(false)
     val showLogoutDialog = _showLogoutDialog.asStateFlow()
 
+    // State untuk forgot password
+    private val _forgotPasswordState =
+            MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
+    val forgotPasswordState = _forgotPasswordState.asStateFlow()
+
     // Flag untuk prevent auto-check session setelah logout
     private var skipAutoCheck = false
+
+    // Username saat ini
+    private val _currentUsername = MutableStateFlow<String?>(null)
+    val currentUsername = _currentUsername.asStateFlow()
 
     // Cek status login saat aplikasi dibuka (Auto Login)
     init {
@@ -45,116 +63,160 @@ class AuthViewModel : ViewModel() {
         val session = repository.getCurrentSession()
         if (session != null) {
             _authState.value = AuthState.Success
+            loadUsername() // Load username saat auto-login
         }
     }
 
-    /**
-     * Get current access token untuk keperluan API calls
-     */
+    /** Load current user's username */
+    fun loadUsername() {
+        viewModelScope.launch { _currentUsername.value = repository.getCurrentUsername() }
+    }
+
+    /** Get current access token untuk keperluan API calls */
     fun getAccessToken(): String? {
         return repository.getAccessToken()
     }
 
-    /**
-     * Refresh session token secara manual
-     */
+    /** Refresh session token secara manual */
     fun refreshSession() {
         viewModelScope.launch {
-            try {
-                val session = repository.refreshSession()
-                if (session == null) {
+            when (val result = repository.refreshSession()) {
+                is Result.Success -> {
+                    // Do nothing, session is refreshed
+                }
+                is Result.Error -> {
                     _authState.value = AuthState.Error("Sesi berakhir, silakan login kembali")
                 }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error("Gagal refresh session: ${e.message}")
             }
         }
     }
 
     fun signUp(email: String, pass: String) {
+        // --- Client-side validation ---
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            _authState.value = AuthState.Error("Format email tidak valid")
+            return
+        }
+        if (pass.length < 6) {
+            _authState.value = AuthState.Error("Password minimal 6 karakter")
+            return
+        }
+        // --- End of validation ---
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            try {
-                repository.signUp(email, pass)
-                // Setelah signup berhasil, cek session
-                val session = repository.getCurrentSession()
-                if (session != null) {
-                    // Email confirmation DISABLED: langsung ada session
-                    _authState.value = AuthState.Success
-                } else {
-                    // Fallback: mungkin email confirmation masih aktif
-                    _authState.value = AuthState.Error(
-                        "Registrasi berhasil! Silakan cek email untuk konfirmasi, lalu login."
-                    )
+            when (val result = repository.signUp(email, pass)) {
+                is Result.Success -> {
+                    // Setelah signup berhasil, cek session
+                    val session = repository.getCurrentSession()
+                    if (session != null) {
+                        // Email confirmation DISABLED: langsung ada session
+                        _authState.value = AuthState.Success
+                    } else {
+                        // Fallback: mungkin email confirmation masih aktif
+                        _authState.value =
+                                AuthState.Error(
+                                        "Registrasi berhasil! Silakan cek email untuk konfirmasi, lalu login."
+                                )
+                    }
                 }
-            } catch (e: Exception) {
-                val errorMsg = when {
-                    e.message?.contains("already registered", ignoreCase = true) == true ||
-                    e.message?.contains("User already registered", ignoreCase = true) == true ->
-                        "Email sudah terdaftar. Silakan login."
-                    e.message?.contains("password", ignoreCase = true) == true ->
-                        "Password minimal 6 karakter"
-                    e.message?.contains("Invalid email", ignoreCase = true) == true ->
-                        "Format email tidak valid"
-                    else -> e.message ?: "Register Gagal"
+                is Result.Error -> {
+                    val errorMsg =
+                            when {
+                                result.exception.message?.contains(
+                                        "already registered",
+                                        ignoreCase = true
+                                ) == true ||
+                                        result.exception.message?.contains(
+                                                "User already registered",
+                                                ignoreCase = true
+                                        ) == true -> "Email sudah terdaftar. Silakan login."
+                                // Client-side validation should prevent this, but keep as a
+                                // fallback
+                                result.exception.message?.contains("password", ignoreCase = true) ==
+                                        true -> "Password minimal 6 karakter"
+                                result.exception.message?.contains(
+                                        "Invalid email",
+                                        ignoreCase = true
+                                ) == true -> "Format email tidak valid"
+                                else -> result.exception.message ?: "Register Gagal"
+                            }
+                    _authState.value = AuthState.Error(errorMsg)
                 }
-                _authState.value = AuthState.Error(errorMsg)
             }
         }
     }
 
     fun signIn(email: String, pass: String) {
+        // --- Client-side validation ---
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            _authState.value = AuthState.Error("Format email tidak valid")
+            return
+        }
+        if (pass.isEmpty()) {
+            _authState.value = AuthState.Error("Password tidak boleh kosong")
+            return
+        }
+        // --- End of validation ---
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            try {
-                repository.signIn(email, pass)
-                _authState.value = AuthState.Success
-            } catch (e: Exception) {
-                val errorMsg = when {
-                    e.message?.contains("Invalid login credentials", ignoreCase = true) == true ->
-                        "Email atau password salah"
-                    e.message?.contains("Email not confirmed", ignoreCase = true) == true ->
-                        "Email belum dikonfirmasi. Cek inbox email Anda."
-                    e.message?.contains("Invalid email", ignoreCase = true) == true ->
-                        "Format email tidak valid"
-                    else -> e.message ?: "Login Gagal"
+            when (val result = repository.signIn(email, pass)) {
+                is Result.Success -> {
+                    _authState.value = AuthState.Success
+                    loadUsername() // Load username setelah login
                 }
-                _authState.value = AuthState.Error(errorMsg)
+                is Result.Error -> {
+                    val errorMsg =
+                            when {
+                                result.exception.message?.contains(
+                                        "Invalid login credentials",
+                                        ignoreCase = true
+                                ) == true -> "Email atau password salah"
+                                result.exception.message?.contains(
+                                        "Email not confirmed",
+                                        ignoreCase = true
+                                ) == true -> "Email belum dikonfirmasi. Cek inbox email Anda."
+                                // Client-side validation should prevent this, but keep as a
+                                // fallback
+                                result.exception.message?.contains(
+                                        "Invalid email",
+                                        ignoreCase = true
+                                ) == true -> "Format email tidak valid"
+                                else -> result.exception.message ?: "Login Gagal"
+                            }
+                    _authState.value = AuthState.Error(errorMsg)
+                }
             }
         }
     }
 
-    /**
-     * Request untuk logout - akan menampilkan dialog konfirmasi
-     */
+    /** Request untuk logout - akan menampilkan dialog konfirmasi */
     fun requestLogout() {
         _showLogoutDialog.value = true
     }
 
-    /**
-     * Cancel logout request
-     */
+    /** Cancel logout request */
     fun cancelLogout() {
         _showLogoutDialog.value = false
     }
 
-    /**
-     * Confirm logout - akan menghapus session dan redirect ke login
-     */
+    /** Confirm logout - akan menghapus session dan redirect ke login */
     fun confirmLogout() {
         _showLogoutDialog.value = false
         viewModelScope.launch {
-            try {
-                // Set flag untuk prevent auto-check session
-                skipAutoCheck = true
+            // Set flag untuk prevent auto-check session
+            skipAutoCheck = true
 
-                // Logout dari repository (clear session)
-                repository.signOut()
-
-                // Set state ke Idle (akan redirect ke login screen)
-                _authState.value = AuthState.Idle
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error("Logout gagal: ${e.message}")
+            // Logout dari repository (clear session)
+            when (val result = repository.signOut()) {
+                is Result.Success -> {
+                    // Set state ke Idle (akan redirect ke login screen)
+                    _authState.value = AuthState.Idle
+                }
+                is Result.Error -> {
+                    _authState.value = AuthState.Error("Logout gagal: ${result.exception.message}")
+                }
             }
         }
     }
@@ -162,5 +224,38 @@ class AuthViewModel : ViewModel() {
     // Reset state biar kalau balik ke login screen gak langsung nge-trigger success lagi
     fun resetState() {
         _authState.value = AuthState.Idle
+    }
+
+    /** Send password reset email */
+    fun sendPasswordResetEmail(email: String) {
+        viewModelScope.launch {
+            _forgotPasswordState.value = ForgotPasswordState.Loading
+            when (val result = repository.sendPasswordResetEmail(email)) {
+                is Result.Success -> {
+                    _forgotPasswordState.value = ForgotPasswordState.Success
+                }
+                is Result.Error -> {
+                    val errorMsg =
+                            when {
+                                result.exception.message?.contains(
+                                        "Invalid email",
+                                        ignoreCase = true
+                                ) == true -> "Format email tidak valid"
+                                result.exception.message?.contains(
+                                        "not found",
+                                        ignoreCase = true
+                                ) == true -> "Email tidak terdaftar"
+                                else -> result.exception.message
+                                                ?: "Gagal mengirim email reset password"
+                            }
+                    _forgotPasswordState.value = ForgotPasswordState.Error(errorMsg)
+                }
+            }
+        }
+    }
+
+    /** Reset forgot password state */
+    fun resetForgotPasswordState() {
+        _forgotPasswordState.value = ForgotPasswordState.Idle
     }
 }
