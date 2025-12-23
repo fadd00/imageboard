@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -41,7 +40,8 @@ fun HomeScreen(
         onThreadClick: (String) -> Unit,
         onLogout: () -> Unit,
         viewModel: HomeViewModel = viewModel(),
-        authViewModel: AuthViewModel = viewModel()
+        authViewModel: AuthViewModel = viewModel(),
+        showFab: Boolean = true
 ) {
     val context = LocalContext.current
     val state by viewModel.homeState.collectAsState()
@@ -210,9 +210,6 @@ fun HomeScreen(
                                 }
                             },
                             actions = {
-                                IconButton(onClick = { showSearchBar = true }) {
-                                    Icon(Icons.Default.Search, contentDescription = "Search")
-                                }
                                 IconButton(onClick = { authViewModel.requestLogout() }) {
                                     Icon(
                                             Icons.AutoMirrored.Filled.ExitToApp,
@@ -224,8 +221,10 @@ fun HomeScreen(
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = onFabClick) {
-                    Icon(Icons.Default.Add, contentDescription = "Create Thread")
+                if (showFab) {
+                    FloatingActionButton(onClick = onFabClick) {
+                        Icon(Icons.Default.Add, contentDescription = "Create Thread")
+                    }
                 }
             }
     ) { padding ->
@@ -324,18 +323,19 @@ fun HomeScreen(
 fun ThreadCard(thread: ThreadWithPermissions, onClick: () -> Unit) {
     Card(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(16.dp)
     ) {
         Row(
                 modifier = Modifier.padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Thumbnail (small, 80x80dp like 4chan)
+            // Thumbnail (100x100dp for better visibility)
             if (thread.imageUrl.isNotEmpty()) {
                 AsyncImage(
                         model = thread.imageUrl,
                         contentDescription = "Thread Image",
-                        modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
+                        modifier = Modifier.size(100.dp).clip(RoundedCornerShape(12.dp)),
                         contentScale = ContentScale.Crop
                 )
             }
