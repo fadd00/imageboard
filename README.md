@@ -273,6 +273,69 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ---
 
+## 🐛 Known Issues & TODO (Next Patch)
+
+### BUGS - Priority 0 (Critical)
+
+| ID | Issue | Location | Description |
+|----|-------|----------|-------------|
+| BUG-001 | Comment FK Constraint | `ThreadRepository.postComment()` | Comment posting may fail due to foreign key constraint violation on some edge cases |
+| BUG-002 | Auto-Login After Logout | `AuthViewModel.checkSession()` | Session may persist after logout - `skipAutoCheck` flag exists but may not cover all cases |
+
+### BUGS - Priority 1 (High)
+
+| ID | Issue | Location | Description |
+|----|-------|----------|-------------|
+| BUG-003 | Title Field Still Queried | `ThreadRepository.getThreadsPaginated()` | Still selecting `title` column even though SRS removed it |
+| BUG-004 | Search Filters on Title | `HomeViewModel.filterThreads()` | `thread.title` still used in search filter (line 285) |
+| BUG-005 | CreateThread Sends Title | `ThreadRepository.createThread()` | Still accepts and sends `title` param to DB (line 248-266) |
+
+### CODE INCONSISTENCIES
+
+| Issue | Location | Fix |
+|-------|----------|-----|
+| Deprecated API Warning | `ThreadRepository.getAllThreads()` | Remove or update deprecated method |
+| Unused Title Parameter | `CreateThreadViewModel.createThread()` | Remove `title` param completely |
+| Mixed Language | Various UI files | Standardize to English or Indonesian |
+| Search Bar in Feed | `HomeScreen.kt` | Search is in separate screen but search bar logic still exists in Feed |
+
+### SECURITY NOTES
+
+> ⚠️ **Email Auth Disabled for Testing**
+> Supabase email confirmation is currently disabled. Enable before production:
+> - Supabase Dashboard → Authentication → Email → Enable "Confirm email"
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| RLS Policies | ✅ Active | Row Level Security enabled on all tables |
+| Image Upload | ✅ Validated | MIME type check + size limit in app + storage |
+| Input Validation | ⚠️ Partial | Client-side only, add server-side validation |
+| API Keys | ⚠️ Review | Check if anon key exposure is acceptable |
+| Session Handling | ⚠️ Review | Test token refresh and expiry handling |
+
+### TODO - Features
+
+- [ ] Remove `title` column usage from all code
+- [ ] Update database schema if `title` column exists
+- [ ] Add timestamp display to posts
+- [ ] Implement profile page (future enhancement)
+- [ ] Add image zoom in detail view
+- [ ] Dark/Light theme toggle
+- [ ] Push notifications for comments
+- [ ] Rate limiting for comment posting
+- [ ] Report/flag content feature
+
+### TODO - Technical Debt
+
+- [ ] Remove all deprecated methods in `ThreadRepository`
+- [ ] Standardize error messages (English/Indonesian)
+- [ ] Add unit tests for ViewModels
+- [ ] Add instrumented tests for UI
+- [ ] Implement proper error handling with retry logic
+- [ ] Add offline mode support (Room + WorkManager)
+
+---
+
 ## 📝 License
 
 MIT License
