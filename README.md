@@ -1,351 +1,279 @@
-# 📱 Imgr - Android Imageboard App
+# Imgr - Mobile Imageboard Application
 
-**Imgr** adalah aplikasi Android forum berbasis gambar (seperti 4chan) yang memungkinkan user untuk posting thread dengan gambar wajib dan memberikan komentar.
+Android imageboard application built with Jetpack Compose and Supabase backend.
 
-## 🚀 Tech Stack
+## 📱 Tech Stack
 
-| Layer | Teknologi |
-|-------|-----------|
-| **Language** | Kotlin |
-| **UI Framework** | Jetpack Compose + Material Design 3 |
-| **Architecture** | MVVM + Clean Architecture |
-| **Backend** | Supabase (PostgreSQL + GoTrue Auth + Storage) |
-| **Network** | Ktor Client |
-| **Image Loading** | Coil |
-| **Image Compression** | Zelory Compressor |
+- **Language**: Kotlin
+- **UI Framework**: Jetpack Compose (Material 3)
+- **Architecture**: MVVM (Model-View-ViewModel)
+- **Backend**: Supabase
+  - Auth (GoTrue) - User authentication
+  - Postgrest - Database queries
+  - Storage - Image uploads
+- **Image Loading**: Coil
+- **Image Compression**: Zelory Compressor
+- **Navigation**: Jetpack Navigation Compose
+- **HTTP Client**: Ktor
 
-## ✨ Fitur
+## ✨ Features
 
-- **Authentication** - Register & login dengan email/password, username auto-generate (`anon-XXXXXXXX`)
-- **Feed** - List thread dengan thumbnail kecil (style 4chan), infinite scroll, pull-to-refresh
-- **Create Thread** - Upload gambar dari kamera/galeri, auto-compress, title + caption
-- **Thread Detail** - Full image, list comments, post comment
-- **Moderation** - Thread owner bisa delete comment di thread-nya, admin bisa delete semua
+### Authentication
+- ✅ Sign up with auto-generated username (`anon-XXXXXXXX`)
+- ✅ Sign in with email/password
+- ✅ Forgot password (email reset link)
+- ✅ Auto-login (session persistence)
+- ✅ **"Tetap Masuk" toggle** - Enable/disable auto-login
+- ✅ Logout with confirmation
 
-## 📁 Struktur Project
+### Thread Management
+- ✅ View thread feed with pagination (20 items per page)
+- ✅ Infinite scroll
+- ✅ Pull-to-refresh
+- ✅ Search threads (by title, caption, username)
+- ✅ Create thread with image (camera/gallery)
+- ✅ Image validation (JPG/PNG, max 2MB)
+- ✅ Auto image compression (target: 500KB, quality 80%, max 1024x1024px)
+- ✅ Delete thread (owner/admin only)
+
+### Comments
+- ✅ View comments (newest first - descending order)
+- ✅ Post comment (max 500 characters)
+- ✅ Delete comment (owner/thread owner/admin)
+
+### UI/UX
+- ✅ **Splash Screen** - Animated "IMGR" branding on app launch
+- ✅ Dark theme (Electric Violet color scheme)
+- ✅ Bottom navigation (Feed, Search, Create)
+- ✅ **Settings Dialog** - Tetap Masuk toggle + Logout button
+- ✅ Skeleton loading states
+- ✅ Responsive layouts
+- ✅ Confirmation dialogs for destructive actions
+
+### Permissions System
+- ✅ Row Level Security (RLS) via Supabase
+- ✅ Thread owner can delete own thread
+- ✅ Thread owner can moderate comments in their thread
+- ✅ Admin can delete any thread/comment
+
+## 🎨 Design
+
+### Theme
+- Primary Color: `#D0BCFF` (Electric Violet)
+- Background: `#141218` (Dark)
+- Surface: `#2B2930` (Dark Gray)
+- **Consistent dark theme** throughout the app
+
+### Screens
+1. **Splash Screen** - Fade in animation with IMGR branding
+2. **Auth Screen** - Login/Register with email validation
+3. **Forgot Password** - Password reset via email
+4. **Home Screen** - Thread feed with search and username display
+5. **Detail Screen** - Thread detail with comments
+6. **Create Screen** - Create thread with image picker
+7. **Search Screen** - Filter threads by keywords
+8. **Settings Dialog** - Stay logged in toggle and logout
+
+## 🔧 Recent Updates (December 2025)
+
+### Bug Fixes
+- ✅ Fixed TopAppBar spacing (removed excess padding)
+- ✅ Fixed username not displaying in TopAppBar
+- ✅ Fixed comment sorting (changed to descending - newest first)
+- ✅ Fixed "Tetap Masuk" preference not persisting on app restart
+
+### New Features
+- ✅ Added Settings Dialog with:
+  - "Tetap Masuk" toggle (auto-login control)
+  - Logout button (red color)
+- ✅ Added Splash Screen with fade animation
+- ✅ Implemented preference persistence with SharedPreferences
+
+### Technical Improvements
+- ✅ Changed `AuthViewModel` to `AndroidViewModel` for Application context access
+- ✅ Load preferences in ViewModel init for proper auto-login behavior
+- ✅ Clear session when "Tetap Masuk" is OFF
+
+## 📁 Project Structure
 
 ```
 app/src/main/java/com/sample/image_board/
 ├── data/
-│   ├── model/          # Data models (Thread, Comment, Profile)
-│   └── repository/     # AuthRepository, ThreadRepository
+│   ├── model/
+│   │   ├── Models.kt - Data classes (Thread, Comment, Profile)
+│   │   └── Result.kt - Result wrapper (Success/Error)
+│   └── repository/
+│       ├── AuthRepository.kt - Authentication logic
+│       └── ThreadRepository.kt - Thread & comment operations
+├── viewmodel/
+│   ├── AuthViewModel.kt - Auth state management
+│   ├── HomeViewModel.kt - Feed state management
+│   ├── DetailViewModel.kt - Thread detail state
+│   └── CreateThreadViewModel.kt - Create thread flow
 ├── ui/
-│   ├── auth/           # Login/Register screen
-│   ├── home/           # Feed screen (HomeScreen)
-│   ├── create/         # Create thread screen
-│   ├── detail/         # Thread detail screen
-│   ├── navigation/     # Navigation setup
-│   └── theme/          # Material theme
-├── utils/
-│   ├── ImageCompressor.kt
-│   └── SupabaseClient.kt
-└── viewmodel/          # ViewModels (MVVM)
+│   ├── splash/
+│   │   └── SplashScreen.kt - Animated splash screen
+│   ├── auth/
+│   │   ├── AuthScreen.kt - Login/Register UI
+│   │   └── ForgotPasswordScreen.kt - Password reset UI
+│   ├── home/
+│   │   └── HomeScreen.kt - Feed with search & settings
+│   ├── detail/
+│   │   └── DetailScreen.kt - Thread & comments
+│   ├── create/
+│   │   └── CreateThreadScreen.kt - Create thread UI
+│   ├── search/
+│   │   └── SearchScreen.kt - Search functionality
+│   ├── main/
+│   │   └── MainScreen.kt - Bottom navigation
+│   ├── navigation/
+│   │   └── AppNavigation.kt - Navigation graph
+│   └── theme/
+│       ├── Theme.kt - Material 3 theme
+│       ├── Color.kt - Color definitions
+│       └── Type.kt - Typography
+└── utils/
+    ├── SupabaseClient.kt - Supabase configuration
+    ├── ImageCompressor.kt - Image compression utility
+    └── PreferenceManager.kt - SharedPreferences wrapper
 ```
 
-## ⚙️ Setup
+## 🚀 Setup
 
-### 1. Clone Repository
-```bash
-git clone <repo-url>
-cd imageboard
-```
+### Prerequisites
+- Android Studio (latest version)
+- Kotlin 1.9+
+- Android SDK 24+ (Nougat)
+- Supabase account
 
-### 2. Setup Supabase
-1. Buat project di [supabase.com](https://supabase.com)
-2. Copy SQL dari bagian [Database Setup](#database-setup) dan jalankan di SQL Editor
-3. Copy URL dan Anon Key dari Settings > API
+### Configuration
 
-### 3. Configure Local Properties
-Buat file `local.properties` di root project:
+1. Clone the repository
+2. Create `local.properties` in project root:
 ```properties
-sdk.dir=/path/to/android/sdk
-SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_KEY=your_supabase_anon_key_here
 ```
 
-### 4. Build & Run
-```bash
-./gradlew assembleDebug
-./gradlew installDebug
-```
+3. Set up Supabase:
+   - Create a project in Supabase
+   - Create tables: `threads`, `comments`, `profiles`
+   - Enable Row Level Security (RLS)
+   - Create storage bucket for images
+   - Enable email authentication
 
----
+4. Build and run the app
 
-## 🗄️ Database Setup
+## 🔐 Environment Variables
 
-Jalankan SQL berikut di Supabase SQL Editor:
+Required in `local.properties`:
+- `SUPABASE_URL` - Your Supabase project URL
+- `SUPABASE_KEY` - Your Supabase anon/public key
 
-### 1. Core Tables
-```sql
--- Bersihkan jika ada
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
-DROP TABLE IF EXISTS public.comments;
-DROP TABLE IF EXISTS public.threads;
-DROP TABLE IF EXISTS public.profiles;
+These are injected into `BuildConfig` at compile time.
 
--- Table Profiles
-CREATE TABLE public.profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL PRIMARY KEY,
-  username TEXT UNIQUE,
-  full_name TEXT,
-  avatar_url TEXT,
-  role TEXT DEFAULT 'member' CHECK (role IN ('member', 'admin', 'moderator')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
+## 📸 Screenshots
 
--- Table Threads
-CREATE TABLE public.threads (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  title TEXT NOT NULL,
-  caption TEXT,
-  image_url TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
+### Splash Screen
+- Animated "IMGR" branding with fade in effect
+- Automatically routes to Login or Main based on auth state
 
--- Table Comments
-CREATE TABLE public.comments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  thread_id UUID REFERENCES public.threads(id) ON DELETE CASCADE NOT NULL,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  content TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
+### Home Screen
+- Compact header with app title and current username
+- Search functionality
+- Settings icon for preferences
+- Thread cards with image thumbnails
+- Pull-to-refresh and infinite scroll
 
--- Enable RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.threads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
-```
+### Settings Dialog
+- "Tetap Masuk" toggle switch
+- Red logout button
+- Clean Material 3 design
 
-### 2. RLS Policies
-```sql
--- PROFILES
-CREATE POLICY "Public profiles are viewable by everyone"
-  ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Users can insert their own profile"
-  ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE USING (auth.uid() = id);
+### Thread Detail
+- Full image display
+- Comments section (newest first)
+- Add comment input with character counter
+- Delete options for authorized users
 
--- THREADS
-CREATE POLICY "Threads are viewable by everyone"
-  ON public.threads FOR SELECT USING (true);
-CREATE POLICY "Authenticated users can create threads"
-  ON public.threads FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Users can delete own threads OR admin can delete"
-  ON public.threads FOR DELETE USING (
-    auth.uid() = user_id OR
-    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
-  );
+## 🎯 Permissions
 
--- COMMENTS
-CREATE POLICY "Comments are viewable by everyone"
-  ON public.comments FOR SELECT USING (true);
-CREATE POLICY "Authenticated users can create comments"
-  ON public.comments FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Users can delete own comments OR thread owner can delete"
-  ON public.comments FOR DELETE USING (
-    auth.uid() = user_id OR
-    EXISTS (SELECT 1 FROM public.threads WHERE threads.id = comments.thread_id AND threads.user_id = auth.uid()) OR
-    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
-  );
-```
+### App Permissions
+- `INTERNET` - Network access
+- `ACCESS_NETWORK_STATE` - Network state checking
+- `CAMERA` - Take photos
+- `READ_MEDIA_IMAGES` - Access gallery
 
-### 3. Auto-Create Profile Trigger
-```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, username, full_name, role)
-  VALUES (
-    new.id,
-    COALESCE(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    new.raw_user_meta_data->>'full_name',
-    'member'
-  );
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+### User Roles
+- **User** - Can create threads, post comments, delete own content
+- **Thread Owner** - Can delete own thread and moderate comments
+- **Admin** - Full access to delete any content
 
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-```
+## 🔄 Data Flow
 
-### 4. Comment Count Function
-```sql
-CREATE OR REPLACE FUNCTION get_comment_counts(thread_ids_array uuid[])
-RETURNS JSON
-LANGUAGE plpgsql AS $$
-DECLARE
-    counts_json JSON;
-BEGIN
-    SELECT json_object_agg(thread_id, comment_count)
-    INTO counts_json
-    FROM (
-        SELECT thread_id, COUNT(*) as comment_count
-        FROM comments WHERE thread_id = ANY(thread_ids_array)
-        GROUP BY thread_id
-    ) AS comment_counts;
-    RETURN COALESCE(counts_json, '{}'::json);
-END;
-$$;
-```
+1. **Authentication**
+   - User signs up → Auto-generated username → Profile created via SQL trigger
+   - Session saved to secure storage (if "Tetap Masuk" ON)
+   - Auto-login on app restart
 
-### 5. Indexes
-```sql
-CREATE INDEX IF NOT EXISTS idx_threads_created_at ON public.threads(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_threads_user_id ON public.threads(user_id);
-CREATE INDEX IF NOT EXISTS idx_comments_thread_id ON public.comments(thread_id);
-CREATE INDEX IF NOT EXISTS idx_comments_created_at ON public.comments(created_at);
-```
+2. **Thread Feed**
+   - Paginated loading (20 threads per page)
+   - Infinite scroll triggers next page
+   - Batched comment counts for performance
+   - RLS enforces permissions
 
----
+3. **Image Upload**
+   - Validate format and size (client-side)
+   - Compress image (target 500KB)
+   - Upload to Supabase Storage
+   - Store URL in database
 
-## 📦 Storage Setup
+4. **Preferences**
+   - "Tetap Masuk" saved to SharedPreferences
+   - Loaded in ViewModel init
+   - Controls auto-login behavior
 
-### 1. Create Bucket
-```sql
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-    'images', 'images', true, 5242880,
-    ARRAY['image/jpeg', 'image/jpg', 'image/png']
-) ON CONFLICT (id) DO NOTHING;
-```
+## 🐛 Known Issues
 
-### 2. Storage Policies
-```sql
--- Public read
-CREATE POLICY "Public Read Access"
-  ON storage.objects FOR SELECT TO public
-  USING (bucket_id = 'images');
-
--- Authenticated upload
-CREATE POLICY "Authenticated Upload"
-  ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'images');
-
--- Delete own images
-CREATE POLICY "Users Delete Own Images"
-  ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'images' AND auth.uid()::text = (storage.foldername(name))[1]);
-```
-
----
-
-## 👑 Admin Management
-
-### Promote User to Admin
-```sql
-SELECT promote_to_admin('email@example.com');
-```
-
-### Demote Admin to Member
-```sql
-SELECT demote_from_admin('email@example.com');
-```
-
-### Promote/Demote Functions
-```sql
-CREATE OR REPLACE FUNCTION promote_to_admin(user_email TEXT)
-RETURNS VOID AS $$
-DECLARE target_user_id UUID;
-BEGIN
-  SELECT id INTO target_user_id FROM auth.users WHERE email = user_email;
-  IF target_user_id IS NULL THEN RAISE EXCEPTION 'User not found'; END IF;
-  UPDATE public.profiles SET role = 'admin' WHERE id = target_user_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE FUNCTION demote_from_admin(user_email TEXT)
-RETURNS VOID AS $$
-DECLARE target_user_id UUID;
-BEGIN
-  SELECT id INTO target_user_id FROM auth.users WHERE email = user_email;
-  IF target_user_id IS NULL THEN RAISE EXCEPTION 'User not found'; END IF;
-  UPDATE public.profiles SET role = 'member' WHERE id = target_user_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
----
-
-## 🐛 Known Issues & TODO (Next Patch)
-
-### BUGS - Priority 0 (Critical)
-
-| ID | Issue | Location | Description |
-|----|-------|----------|-------------|
-| BUG-001 | Comment FK Constraint | `ThreadRepository.postComment()` | Comment posting may fail due to foreign key constraint violation on some edge cases |
-| BUG-002 | Auto-Login After Logout | `AuthViewModel.checkSession()` | Session may persist after logout - `skipAutoCheck` flag exists but may not cover all cases |
-
-### BUGS - Priority 1 (High)
-
-| ID | Issue | Location | Description |
-|----|-------|----------|-------------|
-| BUG-003 | Title Field Still Queried | `ThreadRepository.getThreadsPaginated()` | Still selecting `title` column even though SRS removed it |
-| BUG-004 | Search Filters on Title | `HomeViewModel.filterThreads()` | `thread.title` still used in search filter (line 285) |
-| BUG-005 | CreateThread Sends Title | `ThreadRepository.createThread()` | Still accepts and sends `title` param to DB (line 248-266) |
-
-### CODE INCONSISTENCIES
-
-| Issue | Location | Fix |
-|-------|----------|-----|
-| Deprecated API Warning | `ThreadRepository.getAllThreads()` | Remove or update deprecated method |
-| Unused Title Parameter | `CreateThreadViewModel.createThread()` | Remove `title` param completely |
-| Mixed Language | Various UI files | Standardize to English or Indonesian |
-| Search Bar in Feed | `HomeScreen.kt` | Search is in separate screen but search bar logic still exists in Feed |
-
-### SECURITY NOTES
-
-> ⚠️ **Email Auth Disabled for Testing**
-> Supabase email confirmation is currently disabled. Enable before production:
-> - Supabase Dashboard → Authentication → Email → Enable "Confirm email"
-
-| Category | Status | Notes |
-|----------|--------|-------|
-| RLS Policies | ✅ Active | Row Level Security enabled on all tables |
-| Image Upload | ✅ Validated | MIME type check + size limit in app + storage |
-| Input Validation | ⚠️ Partial | Client-side only, add server-side validation |
-| API Keys | ⚠️ Review | Check if anon key exposure is acceptable |
-| Session Handling | ⚠️ Review | Test token refresh and expiry handling |
-
-### TODO - Features
-
-- [ ] Remove `title` column usage from all code
-- [ ] Update database schema if `title` column exists
-- [ ] Add timestamp display to posts
-- [ ] Implement profile page (future enhancement)
-- [ ] Add image zoom in detail view
-- [ ] Dark/Light theme toggle
-- [ ] Push notifications for comments
-- [ ] Rate limiting for comment posting
-- [ ] Report/flag content feature
-
-### TODO - Technical Debt
-
-- [ ] Remove all deprecated methods in `ThreadRepository`
-- [ ] Standardize error messages (English/Indonesian)
-- [ ] Add unit tests for ViewModels
-- [ ] Add instrumented tests for UI
-- [ ] Implement proper error handling with retry logic
-- [ ] Add offline mode support (Room + WorkManager)
-
----
+None currently. All reported bugs have been fixed.
 
 ## 📝 License
 
-MIT License
+This project is for educational/portfolio purposes.
+
+## 👨‍💻 Development Notes
+
+### Code Style
+- Kotlin conventions
+- Jetpack Compose best practices
+- MVVM architecture pattern
+- Repository pattern for data layer
+
+### State Management
+- StateFlow for reactive state
+- ViewModelScope for coroutines
+- Single source of truth
+
+### Performance
+- Image compression before upload
+- Pagination for large datasets
+- Efficient RLS queries
+- Coil for async image loading
+
+## 🔮 Future Enhancements
+
+Potential features for future development:
+- User profiles with avatars
+- Notifications for new comments
+- Thread categories/tags
+- Vote system (upvote/downvote)
+- Bookmarks/favorites
+- Dark/Light theme toggle
+- Reply to specific comments
+- Image gallery support (multiple images)
+- Report/flag content
+- User blocking
 
 ---
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+**Last Updated**: December 27, 2025

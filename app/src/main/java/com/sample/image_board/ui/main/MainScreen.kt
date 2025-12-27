@@ -76,7 +76,7 @@ fun MainScreen(
                                 currentDestination?.hierarchy?.any { it.route == item.route } ==
                                         true
 
-                        NavigationBarItem(
+                         NavigationBarItem(
                                 icon = {
                                     Icon(
                                             imageVector =

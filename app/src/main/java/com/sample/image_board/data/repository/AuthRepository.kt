@@ -159,4 +159,9 @@ class AuthRepository {
             Result.Error(e)
         }
     }
+
+    /** Get current user's email from session */
+    fun getCurrentUserEmail(): String? {
+        return authClient.currentSessionOrNull()?.user?.email
+    }
 }

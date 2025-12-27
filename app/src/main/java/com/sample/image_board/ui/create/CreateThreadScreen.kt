@@ -44,13 +44,15 @@ fun CreateThreadScreen(
         val selectedImageUri by viewModel.selectedImageUri.collectAsState()
         val imageInfo by viewModel.imageInfo.collectAsState()
 
+        var title by remember { mutableStateOf("") }
         var caption by remember { mutableStateOf("") }
         var showImageSourceDialog by remember { mutableStateOf(false) }
         var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
         // Check if can post (image valid)
         val canPost =
-                selectedImageUri != null &&
+                title.isNotBlank() &&
+                        selectedImageUri != null &&
                         imageInfo?.isValid == true &&
                         state !is CreateThreadState.Loading
 
@@ -225,8 +227,7 @@ fun CreateThreadScreen(
                                                         onClick = {
                                                                 viewModel.createThread(
                                                                         context = context,
-                                                                        title = "", // No title per
-                                                                        // SRS
+                                                                        title = title,
                                                                         caption = caption,
                                                                         imageUri = selectedImageUri
                                                                 )
@@ -245,6 +246,18 @@ fun CreateThreadScreen(
                                         .verticalScroll(rememberScrollState())
                                         .padding(16.dp)
                 ) {
+                        // Title input
+                        OutlinedTextField(
+                                value = title,
+                                onValueChange = { title = it },
+                                label = { Text("Title") },
+                                placeholder = { Text("Enter title") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         // Caption input (main content per SRS - no title)
                         OutlinedTextField(
                                 value = caption,

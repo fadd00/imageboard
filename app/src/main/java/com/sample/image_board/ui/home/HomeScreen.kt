@@ -46,6 +46,8 @@ fun HomeScreen(
     val context = LocalContext.current
     val state by viewModel.homeState.collectAsState()
     val showLogoutDialog by authViewModel.showLogoutDialog.collectAsState()
+    val showSettingsDialog by authViewModel.showSettingsDialog.collectAsState()
+    val stayLoggedIn by authViewModel.stayLoggedIn.collectAsState()
     val threadDeleteState by viewModel.threadDeleteState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentUsername by authViewModel.currentUsername.collectAsState()
@@ -64,6 +66,9 @@ fun HomeScreen(
     val isRefreshing = state is HomeState.Refreshing
     val pullRefreshState =
             rememberPullRefreshState(refreshing = isRefreshing, onRefresh = { viewModel.refresh() })
+
+    // Load username saat HomeScreen muncul
+    LaunchedEffect(Unit) { authViewModel.loadUsername() }
 
     // Handle thread delete state
     LaunchedEffect(threadDeleteState) {
@@ -97,6 +102,48 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    // Dialog Settings
+    if (showSettingsDialog) {
+        AlertDialog(
+                onDismissRequest = { authViewModel.closeSettings() },
+                title = { Text("Pengaturan") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        // Stay Logged In Toggle
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Tetap Masuk", style = MaterialTheme.typography.bodyLarge)
+                            Switch(
+                                    checked = stayLoggedIn,
+                                    onCheckedChange = {
+                                        authViewModel.toggleStayLoggedIn()
+                                        authViewModel.saveStayLoggedInPreference()
+                                    }
+                            )
+                        }
+
+                        HorizontalDivider()
+
+                        // Logout Button
+                        Button(
+                                onClick = { authViewModel.requestLogout() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                        ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.error
+                                        )
+                        ) { Text("Logout", color = MaterialTheme.colorScheme.onError) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { authViewModel.closeSettings() }) { Text("Tutup") }
+                }
+        )
     }
 
     // Dialog Konfirmasi Logout
@@ -195,27 +242,38 @@ fun HomeScreen(
                             }
                     )
                 } else {
-                    // Normal Top Bar
-                    TopAppBar(
-                            title = {
-                                Column {
-                                    Text("Imgr")
-                                    currentUsername?.let { username ->
-                                        Text(
-                                                text = username,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            },
-                            actions = {
-                                // Settings/Logout icon (SRS: no profile page)
-                                IconButton(onClick = { authViewModel.requestLogout() }) {
-                                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                                }
+                    // Custom Compact Header
+                    Surface(
+                            shadowElevation = 2.dp,
+                            tonalElevation = 2.dp,
+                            modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                        "Imgr",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                )
+                                // Show username or 'Guest' if null to ensure layout consistency
+                                Text(
+                                        text = currentUsername ?: "Loading...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                    )
+                            // Settings icon
+                            IconButton(onClick = { authViewModel.requestSettings() }) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                            }
+                        }
+                    }
                 }
             },
             floatingActionButton = {
@@ -350,6 +408,16 @@ fun ThreadCard(thread: ThreadWithPermissions, onClick: () -> Unit) {
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                 )
+
+                // Title
+                if (thread.title.isNotEmpty()) {
+                    Text(
+                            text = thread.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                    )
+                }
 
                 // Caption (main content per SRS - no title)
                 if (thread.content.isNotEmpty()) {

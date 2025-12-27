@@ -121,14 +121,15 @@ class CreateThreadViewModel : ViewModel() {
     }
 
     /** Create thread dengan validasi lengkap (SRS: no title column) */
-    fun createThread(
-            context: Context,
-            title: String, // Kept for backward compatibility, but not used
-            caption: String,
-            imageUri: Uri?
-    ) {
+    fun createThread(context: Context, title: String, caption: String, imageUri: Uri?) {
         viewModelScope.launch {
             _createState.value = CreateThreadState.Loading
+
+            // 0. Validasi Title
+            if (title.isBlank()) {
+                _createState.value = CreateThreadState.Error("Title tidak boleh kosong")
+                return@launch
+            }
 
             // 1. Validasi Caption (Opsional tapi ada batas)
             if (caption.length > MAX_CAPTION_LENGTH) {
@@ -170,7 +171,7 @@ class CreateThreadViewModel : ViewModel() {
                 // 5. Upload ke repository (no title per SRS)
                 when (val result =
                                 repository.createThread(
-                                        title = "", // Empty - SRS has no title column
+                                        title = title,
                                         caption = caption.trim().takeIf { it.isNotEmpty() },
                                         imageData = imageByteArray
                                 )

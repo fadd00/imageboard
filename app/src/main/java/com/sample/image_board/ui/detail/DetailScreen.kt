@@ -215,7 +215,7 @@ fun DetailScreen(threadId: String, onBack: () -> Unit, viewModel: DetailViewMode
                             }
                         }
 
-                        // Comments List (Kronologis - Terlama di atas)
+                        // Comments List (Terbaru di atas)
                         if (state.comments.isEmpty()) {
                             item {
                                 Text(
@@ -305,6 +305,18 @@ fun ThreadDetailCard(thread: ThreadWithUser) {
                 )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Title
+            if (thread.title.isNotEmpty()) {
+                Text(
+                        text = thread.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             // Caption
             if (thread.content.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -367,59 +379,64 @@ fun CommentInputBar(
         enabled: Boolean
 ) {
     Surface(modifier = Modifier.fillMaxWidth(), shadowElevation = 8.dp, tonalElevation = 2.dp) {
-        Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
-        ) {
-            // Text Field
-            OutlinedTextField(
-                    value = commentText,
-                    onValueChange = onCommentTextChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Tulis komentar...") },
-                    maxLines = 4,
-                    enabled = !isLoading,
-                    supportingText = {
-                        Text(
-                                "${commentText.length}/${DetailViewModel.MAX_COMMENT_LENGTH}",
-                                color =
-                                        if (commentText.length >= DetailViewModel.MAX_COMMENT_LENGTH
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment =
+                            Alignment.CenterVertically // Sejajar vertikal dengan input box
+            ) {
+                // Text Field
+                OutlinedTextField(
+                        value = commentText,
+                        onValueChange = onCommentTextChange,
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Tulis komentar...") },
+                        maxLines = 4,
+                        enabled = !isLoading
+                        // supportingText removed from here to fix alignment
+                        )
+
+                // Send Button
+                IconButton(
+                        onClick = onSendClick,
+                        enabled = enabled && !isLoading,
+                        modifier =
+                                Modifier.size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                                if (enabled && !isLoading)
+                                                        MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.surfaceVariant
                                         )
-                                                MaterialTheme.colorScheme.error
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                tint =
+                                        if (enabled) MaterialTheme.colorScheme.onPrimary
                                         else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-            )
-
-            // Send Button
-            IconButton(
-                    onClick = onSendClick,
-                    enabled = enabled && !isLoading,
-                    modifier =
-                            Modifier.size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                            if (enabled && !isLoading)
-                                                    MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.surfaceVariant
-                                    )
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(
-                            Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint =
-                                    if (enabled) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
+
+            // Character Counter (manual placement below)
+            Text(
+                    text = "${commentText.length}/${DetailViewModel.MAX_COMMENT_LENGTH}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color =
+                            if (commentText.length >= DetailViewModel.MAX_COMMENT_LENGTH)
+                                    MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
         }
     }
 }

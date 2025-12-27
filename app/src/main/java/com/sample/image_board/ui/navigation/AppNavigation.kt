@@ -14,6 +14,7 @@ import com.sample.image_board.ui.main.MainScreen
 import com.sample.image_board.viewmodel.AuthViewModel
 
 sealed class Screen(val route: String) {
+    data object Splash : Screen("splash")
     data object Login : Screen("login")
     data object ForgotPassword : Screen("forgot_password")
     data object Main : Screen("main") // MainScreen with bottom nav
@@ -27,7 +28,24 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
 
-    NavHost(navController = navController, startDestination = Screen.Login.route) {
+    NavHost(navController = navController, startDestination = Screen.Splash.route) {
+
+        // 0. Splash Screen
+        composable(Screen.Splash.route) {
+            com.sample.image_board.ui.splash.SplashScreen(
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    },
+                    onNavigateToMain = {
+                        navController.navigate(Screen.Main.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    },
+                    authViewModel = authViewModel
+            )
+        }
 
         // 1. Halaman Login
         composable(Screen.Login.route) {
